@@ -19,7 +19,7 @@ const Analysis = (() => {
       if (i) dist[i] = dist[i - 1] + Math.hypot(cx[i] - cx[i - 1], cy[i] - cy[i - 1]) * mpp;
     }
 
-    let ascent = 0, descent = 0, cost = 0, steepLen = 0, maxTerrain = 0, maxGrade = 0;
+    let ascent = 0, descent = 0, cost = 0, steepLen = 0, maxTerrain = 0, maxGrade = 0, canopyDist = 0, denseLen = 0;
     const flagged = [];
     let run = null;
     const win = Math.max(1, Math.round(10 / mpp));
@@ -28,9 +28,12 @@ const Analysis = (() => {
       if (d <= 0) continue;
       const dz = z[i] - z[i - 1];
       if (dz > 0) ascent += dz; else descent -= dz;
-      cost += Terrain.stepCost(d, dz, maxTan, p.weight);
-      if (i >= win) maxGrade = Math.max(maxGrade, Math.abs(z[i] - z[i - win]) / (dist[i] - dist[i - win]));
       const ix = Math.min(w - 1, Math.max(0, Math.round(cx[i]))), iy = Math.min(h - 1, Math.max(0, Math.round(cy[i])));
+      const canopy = ctx.forest ? ctx.forest[iy * w + ix] / 100 : 0;
+      cost += Terrain.stepCost(d, dz, maxTan, p.weight) + d * p.forest * canopy * canopy;
+      canopyDist += canopy * d;
+      if (canopy > 0.7) denseLen += d;
+      if (i >= win) maxGrade = Math.max(maxGrade, Math.abs(z[i] - z[i - win]) / (dist[i] - dist[i - win]));
       const st = slope[iy * w + ix];
       if (st > maxTerrain) maxTerrain = st;
       if (st > maxTan) {
@@ -44,7 +47,7 @@ const Analysis = (() => {
       distance: total, ascent, descent, elevChange: ascent + descent, cost,
       maxGrade: (Math.atan(maxGrade) * 180) / Math.PI,
       maxTerrain: (Math.atan(maxTerrain) * 180) / Math.PI,
-      steepLen, flagged,
+      steepLen, flagged, denseLen, avgCanopy: total ? (100 * canopyDist) / total : 0,
       hours: total / 5000 + ascent / 600, // Naismith's rule
       profile: { d: dist, z },
     };

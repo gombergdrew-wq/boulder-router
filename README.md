@@ -6,6 +6,7 @@ Static web app (no backend) that plans low-elevation-change hiking approaches be
 - **Terrain:** elevation tiles from AWS Terrain Tiles (Terrarium PNG, public, CORS-enabled) are stitched into a grid (~4–15 m cells, picked from the area size).
 - **Cliff avoidance:** slope is computed on a ~15 m baseline. Cells above *Max slope* are blocked, then grown by the *Safety margin*. Routes can't cross blocked cells or take any single step above the limit.
 - **Optimization:** 16-direction least-cost search (Dijkstra/A*) in a Web Worker. Cost = distance × steepness penalty + *Elevation-change penalty* × (climb + descent). Boulder visiting order is solved exactly (≤ 9 boulders) or by nearest-neighbour + 2-opt.
+- **Forest density (US only):** NLCD tree canopy cover (USGS, 30 m, via the MRLC WMS) adds `forestPenalty × canopy²` per meter walked, so dense stands cost far more than light cover. It measures canopy, not undergrowth or deadfall, so treat it as a mild preference, not a guarantee. Outside the US the app says so and ignores it.
 - **Scoring a KML:** the line is resampled on the same grid and measured with the same cost model, then compared against the optimizer run between the line's endpoints (and any Point placemarks as boulder stops).
 
 ## Run locally

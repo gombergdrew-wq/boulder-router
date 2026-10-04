@@ -25,15 +25,16 @@
 
   // ---------- settings ----------
   function readParams() {
-    return { maxSlope: +$('#maxSlope').value, margin: +$('#margin').value, weight: +$('#weight').value, optimize: $('#optimize').checked };
+    return { maxSlope: +$('#maxSlope').value, margin: +$('#margin').value, weight: +$('#weight').value, forest: +$('#forest').value, optimize: $('#optimize').checked };
   }
   function refreshSettingLabels() {
     const p = readParams();
     $('#maxSlopeOut').textContent = `${p.maxSlope}°`;
     $('#marginOut').textContent = fmtE(p.margin);
     $('#weightOut').textContent = p.weight === 0 ? 'off' : `${p.weight}×`;
+    $('#forestOut').textContent = p.forest === 0 ? 'off' : `+${p.forest}×`;
   }
-  ['maxSlope', 'margin', 'weight'].forEach((id) => $('#' + id).addEventListener('input', refreshSettingLabels));
+  ['maxSlope', 'margin', 'weight', 'forest'].forEach((id) => $('#' + id).addEventListener('input', refreshSettingLabels));
   $('#units').addEventListener('change', (e) => {
     imperial = e.target.value === 'imperial';
     try { localStorage.setItem('units', e.target.value); } catch (err) {}
@@ -126,6 +127,7 @@
 
   async function buildContext(latlngs) {
     const p = readParams();
+    const notes = [];
     status('Fetching elevation tiles…');
     const grid = await DEM.buildGrid(boundsOf(latlngs), { onProgress: (a, b) => status(`Fetching elevation tiles… ${a}/${b}`) });
     status('Analyzing slopes…');
@@ -133,7 +135,16 @@
     const maxTan = Math.tan((p.maxSlope * Math.PI) / 180);
     const slope = Terrain.slopeGrid(grid.elev, grid.w, grid.h, grid.mpp, +$('#detail').value);
     const blocked = Terrain.blockedMask(slope, grid.w, grid.h, maxTan, Math.round(p.margin / grid.mpp));
-    return { grid, slope, blocked, maxTan, p };
+    let forest = null;
+    if (p.forest > 0) {
+      status('Fetching forest canopy…');
+      try {
+        const f = await Forest.load(grid);
+        if (f.covered) forest = f.canopy;
+        else notes.push('No tree-canopy data here (outside the US, or no forest), so forest density was ignored.');
+      } catch (err) { notes.push('Forest canopy data could not be loaded, so forest density was ignored.'); }
+    }
+    return { grid, slope, blocked, maxTan, p, forest, notes };
   }
 
   function drawOverlay(ctx) {
@@ -146,6 +157,7 @@
       if (slope[i] > maxTan) { r = 230; gg = 40; b = 40; a = 150; }
       else if (blocked[i]) { r = 255; gg = 130; b = 0; a = 120; }
       else if (slope[i] > maxTan * 0.7) { r = 255; gg = 205; b = 0; a = 80; }
+      else if (ctx.forest && ctx.forest[i] > 70) { r = 20; gg = 110; b = 40; a = 85; }
       else continue;
       d[i * 4] = r; d[i * 4 + 1] = gg; d[i * 4 + 2] = b; d[i * 4 + 3] = a;
     }
@@ -181,12 +193,12 @@
         resolve({ route: m.route, polyline: poly, connectors, snaps: m.snaps });
       };
       worker.onerror = (e) => { worker.terminate(); reject(new Error(e.message || 'Worker failed')); };
-      const elev = grid.elev.slice(), bl = blocked.slice();
+      const elev = grid.elev.slice(), bl = blocked.slice(), fo = ctx.forest ? ctx.forest.slice() : null;
       worker.postMessage({
-        elev, blocked: bl, w: grid.w, h: grid.h, mpp: grid.mpp, maxTan, W: p.weight, optimize: p.optimize,
+        elev, blocked: bl, forest: fo, forestW: p.forest, w: grid.w, h: grid.h, mpp: grid.mpp, maxTan, W: p.weight, optimize: p.optimize,
         points: stops.map((s) => { const [cx, cy] = grid.fromLatLng(s.lat, s.lng); return { cx, cy }; }),
         labels: stops.map((s) => s.label),
-      }, [elev.buffer, bl.buffer]);
+      }, [elev.buffer, bl.buffer, ...(fo ? [fo.buffer] : [])]);
     });
   }
 
@@ -213,7 +225,7 @@
   }
 
   function warnings(ctx, sol, stops) {
-    const out = [];
+    const out = ctx.notes.slice();
     sol.connectors.forEach((c) => {
       if (c.distM > 40) out.push(`${stops[c.idx].label} is ${fmtE(c.distM)} from the nearest gentle ground. The last stretch (dashed) wasn't checked for cliffs. Scout it.`);
     });
@@ -253,6 +265,7 @@
             <tr><td>Total elevation change</td><td>${fmtE(stat.elevChange)}</td></tr>
             <tr><td>Steepest 10 m stretch</td><td>${fmtA(stat.maxGrade)}</td></tr>
             <tr><td>Est. hiking time</td><td>${fmtT(stat.hours)}</td></tr>
+            ${ctx.forest ? `<tr><td>Dense forest (&gt;70% canopy)</td><td>${fmtD(stat.denseLen)}</td></tr>` : ''}
           </table>
           <canvas class="profile"></canvas>
           ${warns.map((w) => `<p class="warn">${w}</p>`).join('')}
@@ -362,6 +375,7 @@
           ${row('Steepest 10 m', u.maxGrade, o.maxGrade, fmtA)}
           ${row('Over-limit terrain', u.steepLen, o.steepLen, fmtD)}
           ${row('Est. time', u.hours, o.hours, fmtT)}
+          ${ctx.forest ? row('Dense forest', u.denseLen, o.denseLen, fmtD) : ''}
         </table>
         <canvas class="profile"></canvas>
         <div class="legend"><i style="background:#1c7ed6"></i>yours <i style="background:#e03131"></i>over limit <i style="background:#e8590c"></i>optimized</div>

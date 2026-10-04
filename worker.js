@@ -13,9 +13,15 @@ self.onmessage = (e) => {
 const progress = (text) => self.postMessage({ type: 'progress', text });
 
 function solve(d) {
-  const { elev, blocked, w, h, mpp, maxTan, W, optimize, points, labels } = d;
+  const { elev, blocked, w, h, mpp, maxTan, W, optimize, points, labels, forest, forestW } = d;
   const n = points.length;
-  const router = new Terrain.Router(elev, blocked, w, h, mpp, maxTan, W);
+  let fcost = null;
+  if (forest && forestW > 0) {
+    // dense canopy matters far more than light cover, so cost grows with canopy squared
+    fcost = new Float32Array(w * h);
+    for (let i = 0; i < fcost.length; i++) { const c = forest[i] / 100; fcost[i] = forestW * c * c; }
+  }
+  const router = new Terrain.Router(elev, blocked, w, h, mpp, maxTan, W, fcost);
 
   // Snap each stop to the nearest cell that isn't cliff/steep.
   const cells = [], snaps = [];

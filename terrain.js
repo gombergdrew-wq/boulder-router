@@ -94,8 +94,9 @@
     [2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
 
   T.Router = class Router {
-    constructor(elev, blocked, w, h, mpp, maxTan, W) {
-      Object.assign(this, { elev, blocked, w, h, mpp, maxTan, W });
+    // fcost (optional): per-cell extra cost per meter walked, from forest density.
+    constructor(elev, blocked, w, h, mpp, maxTan, W, fcost) {
+      Object.assign(this, { elev, blocked, w, h, mpp, maxTan, W, fcost: fcost || null });
       const N = w * h;
       this.g = new Float64Array(N);
       this.parent = new Int32Array(N);
@@ -113,7 +114,7 @@
     // Least-cost search from `src` until every cell in `targets` is settled.
     // Uses an A* heuristic when there is a single target. Results live in this.g / this.parent.
     search(src, targets) {
-      const { w, h, elev, blocked, maxTan, W, g, parent, closed, heap, offs, mpp } = this;
+      const { w, h, elev, blocked, maxTan, W, g, parent, closed, heap, offs, mpp, fcost } = this;
       g.fill(Infinity); parent.fill(-1); closed.fill(0); heap.clear();
       const remaining = new Set(targets);
       const single = targets.length === 1 ? targets[0] : -1;
@@ -139,7 +140,8 @@
           if (bad) continue;
           const dz = elev[v] - zu;
           if (Math.abs(dz) > maxTan * o.dist) continue; // single step too steep
-          const ng = gu + T.stepCost(o.dist, dz, maxTan, W);
+          let ng = gu + T.stepCost(o.dist, dz, maxTan, W);
+          if (fcost) ng += o.dist * 0.5 * (fcost[u] + fcost[v]);
           if (ng < g[v]) { g[v] = ng; parent[v] = u; heap.push(ng + hf(nx, ny), v); }
         }
       }
