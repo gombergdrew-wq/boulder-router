@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boulder Approach Router</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <header>
+      <h1>Boulder Approach Router</h1>
+      <label class="units">Units
+        <select id="units"><option value="imperial">ft / mi</option><option value="metric">m / km</option></select>
+      </label>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="plan">Plan route</button>
+      <button class="tab" data-tab="analyze">Score a KML</button>
+    </nav>
+
+    <section id="plan" class="pane">
+      <form id="searchForm" class="row"><input id="search" type="search" placeholder="Search a place (e.g. Hueco Tanks)"><button>Go</button></form>
+      <div class="seg" id="modes">
+        <button data-mode="start" class="active">Start</button>
+        <button data-mode="end">End</button>
+        <button data-mode="boulder">+ Boulder</button>
+      </div>
+      <p class="hint" id="modeHint">Click the map to place the start.</p>
+      <ol id="pointList" class="points"></ol>
+      <div class="row">
+        <button id="runPlan" class="primary">Find route</button>
+        <button id="clearAll">Clear</button>
+      </div>
+      <div id="planResults"></div>
+    </section>
+
+    <section id="analyze" class="pane" hidden>
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept=".kml,.kmz,.gpx" hidden>
+        <strong>Drop a KML / KMZ / GPX here</strong><span>or click to choose a file</span>
+      </label>
+      <div id="kmlInfo" hidden>
+        <label>Route line <select id="lineSel"></select></label>
+        <label class="check"><input type="checkbox" id="usePoints" checked> Use the file's point placemarks as boulder stops</label>
+        <button id="runAnalyze" class="primary">Score &amp; compare</button>
+      </div>
+      <div id="analyzeResults"></div>
+    </section>
+
+    <details class="settings" open>
+      <summary>Safety &amp; optimization settings</summary>
+      <label>Max slope <output id="maxSlopeOut"></output>
+        <input type="range" id="maxSlope" min="20" max="50" step="1" value="40">
+        <small>Ground steeper than this is treated as cliff/scramble and never crossed.</small></label>
+      <label>Safety margin <output id="marginOut"></output>
+        <input type="range" id="margin" min="0" max="40" step="2" value="8">
+        <small>Keeps the route this far from steep ground (DEMs smooth over cliff edges).</small></label>
+      <label>Elevation-change penalty <output id="weightOut"></output>
+        <input type="range" id="weight" min="0" max="20" step="1" value="8">
+        <small>Each 1 m of climb or descent costs this many meters of flat walking. 0 = shortest path.</small></label>
+      <label>Slope detail
+        <select id="detail"><option value="3">Fine (~7 m baseline, picks up small cliffs, noisier)</option><option value="7" selected>Standard (~15 m baseline)</option><option value="12">Smooth (~25 m baseline)</option></select>
+        <small>Distance over which slope is measured. Finer catches narrow cliff bands but can flag rocks and shrubs.</small></label>
+      <label class="check"><input type="checkbox" id="optimize" checked> Reorder boulders to minimize effort</label>
+      <label class="check"><input type="checkbox" id="showOverlay" checked> Show steep-terrain overlay</label>
+      <div class="legend"><i style="background:rgba(230,40,40,.6)"></i>over limit <i style="background:rgba(255,130,0,.5)"></i>safety margin <i style="background:rgba(255,205,0,.35)"></i>steepening</div>
+    </details>
+
+    <footer>
+      Planning aid only. Elevation data (~4–15 m resolution) can't see small cliffs, ledges or boulder-field scrambles. Scout the approach, and always use your own judgment.
+    </footer>
+  </aside>
+  <main id="map"></main>
+  <div id="status" hidden></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="terrain.js"></script>
+<script src="dem.js"></script>
+<script src="analysis.js"></script>
+<script src="geofiles.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
